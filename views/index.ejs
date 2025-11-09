@@ -1,0 +1,69 @@
+                            <%- include("partials/header") %>
+
+                            <h1 class="title">🏆 Top 100 Players</h1>
+                            <p class="subtitle">Minecraft PvP Leaderboard — ranked by total points</p>
+
+                            <!-- 🔍 Player Search -->
+                            <form action="/search" method="GET" class="search-form">
+                              <input
+                                type="text"
+                                name="username"
+                                placeholder="Search for a player..."
+                                required
+                                class="search-input"
+                              />
+                              <button type="submit" class="search-btn">Search</button>
+                            </form>
+
+                            <div class="leaderboard">
+                              <% if (players && players.length > 0) { %>
+                                <% players.forEach((player, index) => { %>
+                                  <div class="player-row">
+                                    <div class="rank"><%= index + 1 %>.</div>
+
+                                    <div class="player-head">
+                                      <img
+                                        src="https://mc-heads.net/avatar/<%= player.username %>/64"
+                                        alt="<%= player.username %>"
+                                        loading="lazy"
+                                      />
+                                    </div>
+
+                                    <div class="player-info">
+                                      <div class="player-top">
+                                        <span class="player-name">
+                                          <a href="/player/<%= player.username %>"><%= player.username %></a>
+                                        </span>
+                                        <span class="player-points"><%= player.totalPoints %> pts</span>
+                                      </div>
+
+                                      <div class="player-kits">
+                                        <% if (player.kits && player.kits.length > 0) { %>
+                                          <% player.kits.forEach(kit => { %>
+                                            <div
+                                              class="kit-icon"
+                                              data-tier="<%= kit.tier_code %>"
+                                              title="<%= kit.name %> — <%= kit.tier_code %> (<%= kit.points %> pts)"
+                                            >
+                                              <img
+                                                src="<%= kit.icon %>"
+                                                alt="<%= kit.name %> icon"
+                                                onerror="this.src='<%= kit.icon %>'"
+                                                loading="lazy"
+                                              />
+                                              <span class="kit-tier"><%= kit.tier_code %></span>
+                                            </div>
+                                          <% }) %>
+                                        <% } else { %>
+                                          <span class="no-kits">No kits</span>
+                                        <% } %>
+                                      </div>
+                                    </div>
+                                  </div>
+                                <% }) %>
+                              <% } else { %>
+                                <p style="text-align:center; color:#999;">No players found.</p>
+                              <% } %>
+                            </div>
+
+                            <%- include("partials/footer") %>
