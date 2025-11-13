@@ -16,6 +16,8 @@ import {
 } from "discord.js";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import fs from "fs";
+import path from "path";
 
 dotenv.config();
 
@@ -28,7 +30,33 @@ const client = new Client({
   partials: [Partials.Channel],
 });
 
+// ============================================
+// 📁 Setup link storage
+// ============================================
+const linksDir = path.resolve("data");
+const linksPath = path.join(linksDir, "links.json");
+
+// Ensure directory exists
+if (!fs.existsSync(linksDir)) {
+  fs.mkdirSync(linksDir, { recursive: true });
+}
+
+// Load links
+function loadLinks() {
+  if (!fs.existsSync(linksPath)) {
+    fs.writeFileSync(linksPath, JSON.stringify({}, null, 2));
+  }
+  return JSON.parse(fs.readFileSync(linksPath));
+}
+
+// Save links
+function saveLinks(data) {
+  fs.writeFileSync(linksPath, JSON.stringify(data, null, 2));
+}
+
+// ============================================
 // 🧱 Slash commands
+// ============================================
 const commands = [
   new SlashCommandBuilder()
     .setName("queue")
@@ -36,23 +64,72 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName("add-tier")
-    .setDescription("Add or update a player’s tier, kit, and points.")
+    .setDescription("Add or update a player's tier, kit, and points.")
     .addStringOption(opt =>
-      opt.setName("username").setDescription("Minecraft username").setRequired(true))
+      opt.setName("username").setDescription("Minecraft username").setRequired(true)
+    )
     .addStringOption(opt =>
-      opt.setName("kit").setDescription("Kit name (e.g., Sword)").setRequired(true))
+      opt.setName("kit").setDescription("Kit name (e.g., Sword)").setRequired(true)
+    )
     .addStringOption(opt =>
-      opt.setName("tier").setDescription("Tier code (e.g., HT1, LT3)").setRequired(true))
+      opt.setName("tier").setDescription("Tier code (e.g., HT1, LT3)").setRequired(true)
+    )
     .addIntegerOption(opt =>
-      opt.setName("points").setDescription("Player points (e.g., 1200)").setRequired(true)),
+      opt.setName("points").setDescription("Player points (e.g., 1200)").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("link-mc")
+    .setDescription("Link your Discord account to your Minecraft username.")
+    .addStringOption(opt =>
+      opt.setName("username").setDescription("Your Minecraft username").setRequired(true)
+    ),
 ];
 
-// 🟢 Register commands on startup
+// 🟢 Register commands
 client.once("ready", async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
   const guild = await client.guilds.fetch(process.env.GUILD_ID);
   await guild.commands.set(commands);
   console.log("✅ Slash commands registered.");
+});
+
+// ============================================
+// 🔗 /link-mc — Link Discord → Minecraft
+// ============================================
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isChatInputCommand() || interaction.commandName !== "link-mc") return;
+
+  const username = interaction.options.getString("username");
+  const discordId = interaction.user.id;
+
+  let links = loadLinks();
+
+  // 1️⃣ This Discord user already linked?
+  for (const mcName in links) {
+    if (links[mcName] === discordId) {
+      return interaction.reply({
+        content: `❌ You already linked your account to **${mcName}**.`,
+        flags: 64,
+      });
+    }
+  }
+
+  // 2️⃣ This Minecraft username already linked to someone else?
+  if (links[username]) {
+    return interaction.reply({
+      content: `❌ The Minecraft username **${username}** is already linked to another Discord user.`,
+      flags: 64,
+    });
+  }
+
+  // 3️⃣ Save link
+  links[username] = discordId;
+  saveLinks(links);
+
+  interaction.reply({
+    content: `✅ Successfully linked **${username}** to your Discord account!`,
+  });
 });
 
 // ============================================
@@ -68,7 +145,7 @@ client.on("interactionCreate", async interaction => {
 
   const embed = new EmbedBuilder()
     .setTitle("🧩 Testing Queue Signup")
-    .setDescription("Click below to join the testing queue.\nYou’ll be asked for your Minecraft details.")
+    .setDescription("Click below to join the testing queue.\nYou'll be asked for your Minecraft details.")
     .setColor(0x2f3136);
 
   const joinButton = new ButtonBuilder()
@@ -88,36 +165,36 @@ client.on("interactionCreate", async interaction => {
 
   const modal = new ModalBuilder().setCustomId("queue_modal").setTitle("Join Testing Queue");
 
-  const username = new TextInputBuilder()
-    .setCustomId("username")
-    .setLabel("Minecraft Username")
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true);
-
-  const server = new TextInputBuilder()
-    .setCustomId("server")
-    .setLabel("Minecraft Server")
-    .setPlaceholder("Example: hypixel.net or mctiers.com")
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true);
-
-  const region = new TextInputBuilder()
-    .setCustomId("region")
-    .setLabel("Region (e.g., EU, NA, ASIA)")
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true);
-
-  const kit = new TextInputBuilder()
-    .setCustomId("kit")
-    .setLabel("Kit (e.g., Sword, Axe, Lifesteal)")
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true);
-
   modal.addComponents(
-    new ActionRowBuilder().addComponents(username),
-    new ActionRowBuilder().addComponents(server),
-    new ActionRowBuilder().addComponents(region),
-    new ActionRowBuilder().addComponents(kit)
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("username")
+        .setLabel("Minecraft Username")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("server")
+        .setLabel("Minecraft Server")
+        .setPlaceholder("Example: hypixel.net or mctiers.com")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("region")
+        .setLabel("Region (e.g., EU, NA, ASIA)")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("kit")
+        .setLabel("Kit (e.g., Sword, Axe, Lifesteal)")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+    )
   );
 
   await interaction.showModal(modal);
@@ -134,6 +211,7 @@ client.on("interactionCreate", async interaction => {
   const region = interaction.fields.getTextInputValue("region");
   const kit = interaction.fields.getTextInputValue("kit");
 
+  // Validate server format
   if (!server.match(/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/)) {
     return interaction.reply({
       content: "❌ Please enter a valid Minecraft server (e.g., hypixel.net).",
@@ -188,7 +266,7 @@ client.on("interactionCreate", async interaction => {
 });
 
 // ============================================
-// 🧠 /add-tier command — Supabase integration
+// 🧠 /add-tier — Supabase integration
 // ============================================
 client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand() || interaction.commandName !== "add-tier") return;
@@ -202,7 +280,7 @@ client.on("interactionCreate", async interaction => {
   const tier = interaction.options.getString("tier");
   const points = interaction.options.getInteger("points");
 
-  // 1️⃣ Get or create player
+  // Get or create player
   let { data: playerData, error: playerError } = await supabase
     .from("players")
     .select("id")
@@ -225,17 +303,18 @@ client.on("interactionCreate", async interaction => {
     playerId = data.id;
   }
 
-  // 2️⃣ Get kit ID
+  // Get kit ID
   const { data: kitData, error: kitError } = await supabase
     .from("kits")
     .select("id")
     .eq("name", kit)
     .single();
+
   if (kitError || !kitData) {
     return interaction.reply({ content: `❌ Kit "${kit}" not found.`, flags: 64 });
   }
 
-  // 3️⃣ Try to update existing or insert new
+  // Update or insert
   const { data: existing, error: existingError } = await supabase
     .from("player_kits")
     .select("id")

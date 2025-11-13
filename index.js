@@ -49,6 +49,7 @@ const kitIcons = {
   "SMP": "https://5ohxxy1roe.ucarecd.net/49a2a01c-46e7-4dd4-813b-91428cb86028/Cobweb.png",
   "Lifesteal": "https://5ohxxy1roe.ucarecd.net/a25a160e-09b9-4540-89e7-9b6f75bd8859/Hardcore_Heart_Full.png",
   "CartPVP": "https://5ohxxy1roe.ucarecd.net/89646374-78ad-4b75-acd3-ed06318ceecd/Tnt_Minecart.png",
+  "UHC": "https://5ohxxy1roe.ucarecd.net/f1833283-ff6b-496d-891b-fb103eb49bcf/Lava_Bucket.png",
 };
 const defaultIcon = "https://cdn.example.com/icons/default.png";
 
