@@ -77,6 +77,10 @@ const commands = [
     .addStringOption(o => o.setName("username").setDescription("Minecraft username").setRequired(true)),
 
   new SlashCommandBuilder()
+    .setName("unlink-mc")
+    .setDescription("Unlink your Minecraft account from your Discord account."),
+
+  new SlashCommandBuilder()
     .setName("whois")
     .setDescription("Look up a linked account.")
     .addUserOption(o => o.setName("user").setDescription("Discord user").setRequired(false))
@@ -128,6 +132,28 @@ client.on("interactionCreate", async interaction => {
   saveLinks(links);
 
   return interaction.reply(`✅ Linked **${username}** to your Discord account!`);
+});
+
+// ============================================
+// /unlink-mc
+// ============================================
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isChatInputCommand() || interaction.commandName !== "unlink-mc") return;
+
+  const discordId = interaction.user.id;
+  let links = loadLinks();
+
+  const entry = Object.entries(links).find(([, id]) => id === discordId);
+
+  if (!entry) {
+    return interaction.reply({ content: "❌ You don't have a linked Minecraft account.", flags: 64 });
+  }
+
+  const [linkedMc] = entry;
+  delete links[linkedMc];
+  saveLinks(links);
+
+  return interaction.reply(`✅ Unlinked **${linkedMc}** from your Discord account!`);
 });
 
 // ============================================
@@ -218,7 +244,7 @@ client.on("interactionCreate", async interaction => {
 
   const embed = new EmbedBuilder()
     .setTitle("🧩 Testing Queue Signup")
-    .setDescription("Click Join below.\nYou’ll be asked for your MC details.")
+    .setDescription("Click Join below.\nYou'll be asked for your MC details.")
     .setColor(0x2f3136);
 
   const btn = new ButtonBuilder()
