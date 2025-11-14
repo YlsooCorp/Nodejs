@@ -46,12 +46,24 @@ function loadLinks() {
   if (!fs.existsSync(linksPath)) {
     fs.writeFileSync(linksPath, JSON.stringify({}, null, 2));
   }
-  return JSON.parse(fs.readFileSync(linksPath));
+  const raw = fs.readFileSync(linksPath, "utf8");
+  try {
+    return JSON.parse(raw || "{}");
+  } catch {
+    // fallback if file corrupted
+    return {};
+  }
 }
 
 // Save links
 function saveLinks(data) {
   fs.writeFileSync(linksPath, JSON.stringify(data, null, 2));
+}
+
+// Helper to get skin head URL (Crafatar)
+function getSkinHeadUrl(username) {
+  // Crafatar will resolve username → UUID internally
+  return `https://crafatar.com/avatars/${encodeURIComponent(username)}?size=128&overlay`;
 }
 
 // ============================================
@@ -83,6 +95,16 @@ const commands = [
     .setDescription("Link your Discord account to your Minecraft username.")
     .addStringOption(opt =>
       opt.setName("username").setDescription("Your Minecraft username").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("whois")
+    .setDescription("Look up a linked Minecraft or Discord account.")
+    .addUserOption(opt =>
+      opt.setName("user").setDescription("Discord user to look up").setRequired(false)
+    )
+    .addStringOption(opt =>
+      opt.setName("username").setDescription("Minecraft username to look up").setRequired(false)
     ),
 ];
 
@@ -130,6 +152,80 @@ client.on("interactionCreate", async interaction => {
   interaction.reply({
     content: `✅ Successfully linked **${username}** to your Discord account!`,
   });
+});
+
+// ============================================
+// 🔍 /whois — Look up links
+// ============================================
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isChatInputCommand() || interaction.commandName !== "whois") return;
+
+  const targetUser = interaction.options.getUser("user");
+  const mcName = interaction.options.getString("username");
+
+  if (!targetUser && !mcName) {
+    return interaction.reply({
+      content: "❌ Please provide either a Discord user or a Minecraft username.",
+      flags: 64,
+    });
+  }
+
+  const links = loadLinks();
+
+  // If Minecraft username provided → find Discord
+  if (mcName) {
+    const linkedId = links[mcName];
+    if (!linkedId) {
+      return interaction.reply({
+        content: `❌ No Discord account is linked to **${mcName}**.`,
+        flags: 64,
+      });
+    }
+
+    const user = await interaction.client.users.fetch(linkedId).catch(() => null);
+
+    const embed = new EmbedBuilder()
+      .setTitle("🔍 Whois Lookup")
+      .addFields(
+        { name: "Minecraft Username", value: mcName, inline: true },
+        {
+          name: "Discord User",
+          value: user ? `${user.tag} (<@${user.id}>)` : `Unknown user (ID: ${linkedId})`,
+          inline: true,
+        }
+      )
+      .setThumbnail(getSkinHeadUrl(mcName))
+      .setColor(0x5865f2);
+
+    return interaction.reply({ embeds: [embed] });
+  }
+
+  // If Discord user provided → find Minecraft
+  if (targetUser) {
+    const entry = Object.entries(links).find(
+      ([, discordId]) => discordId === targetUser.id
+    );
+
+    if (!entry) {
+      return interaction.reply({
+        content: `❌ No Minecraft account is linked to ${targetUser}.`,
+        flags: 64,
+      });
+    }
+
+    const [linkedMcName] = entry;
+
+    const embed = new EmbedBuilder()
+      .setTitle("🔍 Whois Lookup")
+      .addFields(
+        { name: "Discord User", value: `${targetUser.tag} (<@${targetUser.id}>)`, inline: true },
+        { name: "Minecraft Username", value: linkedMcName, inline: true }
+      )
+      .setThumbnail(getSkinHeadUrl(linkedMcName))
+      .setColor(0x5865f2);
+
+    return interaction.reply({ embeds: [embed] });
+  }
 });
 
 // ============================================
@@ -266,7 +362,7 @@ client.on("interactionCreate", async interaction => {
 });
 
 // ============================================
-// 🧠 /add-tier — Supabase integration
+// 🧠 /add-tier — Supabase integration + embed + reactions
 // ============================================
 client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand() || interaction.commandName !== "add-tier") return;
@@ -280,7 +376,7 @@ client.on("interactionCreate", async interaction => {
   const tier = interaction.options.getString("tier");
   const points = interaction.options.getInteger("points");
 
-  // Get or create player
+  // 1️⃣ Get or create player
   let { data: playerData, error: playerError } = await supabase
     .from("players")
     .select("id")
@@ -303,18 +399,17 @@ client.on("interactionCreate", async interaction => {
     playerId = data.id;
   }
 
-  // Get kit ID
+  // 2️⃣ Get kit ID
   const { data: kitData, error: kitError } = await supabase
     .from("kits")
     .select("id")
     .eq("name", kit)
     .single();
-
   if (kitError || !kitData) {
     return interaction.reply({ content: `❌ Kit "${kit}" not found.`, flags: 64 });
   }
 
-  // Update or insert
+  // 3️⃣ Try to update existing or insert new
   const { data: existing, error: existingError } = await supabase
     .from("player_kits")
     .select("id")
@@ -346,9 +441,34 @@ client.on("interactionCreate", async interaction => {
     return interaction.reply({ content: "❌ Failed to update tier.", flags: 64 });
   }
 
-  interaction.reply({
+  // 4️⃣ Build embed with skin head, tier, kit, points
+  const skinUrl = getSkinHeadUrl(username);
+
+  const resultEmbed = new EmbedBuilder()
+    .setTitle(`🧱 Tier Updated: ${username}`)
+    .setThumbnail(skinUrl)
+    .addFields(
+      { name: "Minecraft Username", value: username, inline: true },
+      { name: "Kit", value: kit, inline: true },
+      { name: "Tier", value: tier, inline: true },
+      { name: "Points", value: points.toString(), inline: true }
+    )
+    .setColor(0x00ff00)
+    .setTimestamp();
+
+  // 5️⃣ Send message + embed, then react
+  const message = await interaction.reply({
     content: `✅ Updated **${username}** → **${kit} ${tier} (${points} pts)** successfully!`,
+    embeds: [resultEmbed],
+    fetchReply: true,
   });
+
+  try {
+    await message.react("✅");
+    await message.react("❌");
+  } catch (err) {
+    console.error("Failed to add reactions:", err);
+  }
 });
 
 // ============================================
