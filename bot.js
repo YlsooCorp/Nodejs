@@ -306,7 +306,7 @@ client.on("interactionCreate", async interaction => {
 client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand() || interaction.commandName !== "add-tier") return;
 
-  if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+  if (!interaction.member.permissions.has(PermissionsBitField.Flags.MANAGE_MESSAGES)) {
     return interaction.reply({ content: "❌ Admin only.", flags: 64 });
   }
 
