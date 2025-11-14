@@ -273,7 +273,7 @@ client.on("interactionCreate", async interaction => {
       new TextInputBuilder()
         .setCustomId("server")
         .setLabel("Minecraft Server")
-        .setPlaceholder("Example: hypixel.net or mctiers.com")
+        .setPlaceholder("Example: hypixel.net or oaksmc.com")
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
     ),
