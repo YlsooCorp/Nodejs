@@ -1,49 +1,49 @@
-      <%- include("partials/header") %>
+        <%- include("partials/header") %>
 
-      <section class="player-profile">
-        <div class="profile-header">
-          <h1 class="player-name"><%= player.username %></h1>
-          <p class="player-total">Total Points: <span><%= player.totalPoints %></span></p>
-        </div>
+        <section class="player-profile">
+          <div class="profile-header">
+            <h1 class="player-name"><%= player.username %></h1>
+            <p class="player-total">Total Points: <span><%= player.totalPoints %></span></p>
+          </div>
 
-        <div class="skin-container">
-          <img
-            src="https://mc-heads.net/body/<%= player.username %>/right"
-            alt="<%= player.username %> skin"
-            class="player-skin"
-            loading="lazy"
-          />
-        </div>
+          <div class="skin-container">
+            <img
+              src="https://mc-heads.net/body/<%= player.username %>/right"
+              alt="<%= player.username %> skin"
+              class="player-skin"
+              loading="lazy"
+            />
+          </div>
 
-        <div class="kits-section">
-          <h2>Player Kits</h2>
+          <div class="kits-section">
+            <h2>Player Kits</h2>
 
-          <% if (player.kits && player.kits.length > 0) { %>
-            <div class="kit-grid">
-              <% player.kits.forEach(kit => { %>
-                <div class="kit-card" data-tier="<%= kit.tier_code %>">
-                  <div class="kit-icon-box">
-                    <img
-                      src="<%= kit.icon %>"
-                      alt="<%= kit.name %> icon"
-                      class="kit-icon"
-                      onerror="this.src='<%= player.kits.find(k => k.name === kit.name)?.icon || '' %>'"
-                    />
+            <% if (player.kits && player.kits.length > 0) { %>
+              <div class="kit-grid">
+                <% player.kits.forEach(kit => { %>
+                  <div class="kit-card" data-tier="<%= kit.tier_code %>">
+                    <div class="kit-icon-box">
+                      <img
+                        src="<%= kit.icon %>"
+                        alt="<%= kit.name %> icon"
+                        class="kit-icon"
+                        onerror="this.src='<%= player.kits.find(k => k.name === kit.name)?.icon || '' %>'"
+                      />
+                    </div>
+                    <div class="kit-info">
+                      <h3><%= kit.name %></h3>
+                      <p class="tier">Tier: <%= kit.tier_code %></p>
+                      <p class="points"><%= kit.points %> pts</p>
+                    </div>
                   </div>
-                  <div class="kit-info">
-                    <h3><%= kit.name %></h3>
-                    <p class="tier">Tier: <%= kit.tier_code %></p>
-                    <p class="points"><%= kit.points %> pts</p>
-                  </div>
-                </div>
-              <% }) %>
-            </div>
-          <% } else { %>
-            <p class="no-kits">No kits found for this player.</p>
-          <% } %>
-        </div>
+                <% }) %>
+              </div>
+            <% } else { %>
+              <p class="no-kits">No kits found for this player.</p>
+            <% } %>
+          </div>
 
-        <a href="/" class="back-btn">← Back to Leaderboard</a>
-      </section>
+          <a href="/" class="back-btn">← Back to Leaderboard</a>
+        </section>
 
-      <%- include("partials/footer") %>
+        <%- include("partials/footer") %>

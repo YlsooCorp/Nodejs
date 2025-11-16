@@ -1,62 +1,40 @@
-// index.js
 import express from "express";
 import dotenv from "dotenv";
 import session from "express-session";
 import { supabase } from "./supabase/client.js";
-import { spawn } from "child_process";
-import path from "path";
-import { fileURLToPath } from "url";
+import "./bot.js"; // Automatically start the Discord bot
 
 dotenv.config();
-
 const app = express();
 const PORT = process.env.PORT || 3000;
-const NODE_ENV = process.env.NODE_ENV || "development";
 
-// --- Resolve paths ---
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// ==========================================
-// ⚙️  EXPRESS + EJS SETUP
-// ==========================================
-
-// When running behind a proxy (Cloudflare / Sevalla), this is important
-app.set("trust proxy", 1);
-
+// ===============================
+// ⚙️ Setup
+// ===============================
 app.set("view engine", "ejs");
-app.set("views", path.join(__dirname, "views")); // ensure correct views path
-app.use(express.static(path.join(__dirname, "public"))); // ensure correct static path
+app.use(express.static("public"));
 app.use(express.urlencoded({ extended: true }));
 
-// 🧩 Sessions (for login persistence)
 app.use(
   session({
-    name: "sid",
-    secret: process.env.SESSION_SECRET || "change-me-in-production",
+    secret: process.env.SESSION_SECRET || "supersecret",
     resave: false,
     saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: NODE_ENV === "production", // secure cookies only over HTTPS
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    },
+    cookie: { secure: false }, // set true in production with HTTPS
   })
 );
 
-// 🧠 Make user accessible in templates
 app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   next();
 });
 
-// ==========================================
-// ⚔️ KIT ICONS
-// ==========================================
+// ===============================
+// 🧱 Kit Icons (Cloud URLs)
+// ===============================
 const kitIcons = {
   "Mace": "https://5ohxxy1roe.ucarecd.net/b826101d-1d74-4b70-86ae-1a49827efede/Mace.png",
-  "Vanilla (Crystals)": "https://5ohxxy1roe.ucarecd.net/250f0953-d9d7-4e2f-885a-c4a76b8538a8/End_Crystal.png",
+  "Vanilla": "https://5ohxxy1roe.ucarecd.net/250f0953-d9d7-4e2f-885a-c4a76b8538a8/End_Crystal.png",
   "Sword": "https://5ohxxy1roe.ucarecd.net/14265368-a900-40f1-9a42-e89afbfb319f/Diamond_Sword.png",
   "Axe": "https://5ohxxy1roe.ucarecd.net/58f80177-0f61-412c-ac8b-a37460f485c3/Diamond_Axe.png",
   "NethPOT": "https://5ohxxy1roe.ucarecd.net/81e8f12b-aade-4758-a967-772eaf071a77/Splash_Potion_Invisibility.png",
@@ -65,16 +43,12 @@ const kitIcons = {
   "CartPVP": "https://5ohxxy1roe.ucarecd.net/89646374-78ad-4b75-acd3-ed06318ceecd/Tnt_Minecart.png",
   "UHC": "https://5ohxxy1roe.ucarecd.net/f1833283-ff6b-496d-891b-fb103eb49bcf/Lava_Bucket.png",
 };
+const defaultIcon = "https://cdn.example.com/icons/default.png";
 
-const defaultIcon =
-  "https://5ohxxy1roe.ucarecd.net/b826101d-1d74-4b70-86ae-1a49827efede/Mace.png"; // fallback
-
-// ==========================================
-// 👤 USER AUTH ROUTES
-// ==========================================
-
-// Register
-app.get("/register", (req, res) => res.render("register", { error: null }));
+// ===============================
+// 👤 User Auth Routes
+// ===============================
+app.get("/register", (req, res) => res.render("register"));
 app.post("/register", async (req, res) => {
   const { email, password } = req.body;
   const { data, error } = await supabase.auth.signUp({ email, password });
@@ -83,50 +57,40 @@ app.post("/register", async (req, res) => {
   res.redirect("/login");
 });
 
-// Login
-app.get("/login", (req, res) => res.render("login", { error: null }));
+app.get("/login", (req, res) => res.render("login"));
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return res.render("login", { error: error.message });
 
   req.session.user = data.user;
   res.redirect("/dashboard");
 });
 
-// Dashboard (protected)
 app.get("/dashboard", (req, res) => {
   if (!req.session.user) return res.redirect("/login");
   res.render("dashboard", { user: req.session.user });
 });
 
-// Logout
 app.get("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/"));
 });
 
-// ==========================================
-// 🧠 PLAYER + LEADERBOARD ROUTES
-// ==========================================
-
-// Player profile
+// ===============================
+// 🧠 Player Profile Route
+// ===============================
 app.get("/player/:username", async (req, res) => {
   const username = req.params.username;
 
-  const { data: pkData, error } = await supabase
+  const { data: playerKits, error } = await supabase
     .from("player_kits")
-    .select(
-      `
+    .select(`
+      id,
       tier_code,
       points,
-      kits(name),
-      players(username)
-    `
-    )
+      kits!inner(name),
+      players!inner(username)
+    `)
     .eq("players.username", username)
     .order("points", { ascending: false });
 
@@ -135,14 +99,25 @@ app.get("/player/:username", async (req, res) => {
     return res.status(500).send("Error loading player: " + error.message);
   }
 
-  if (!pkData || pkData.length === 0) {
-    return res.status(404).send("Player not found");
+  if (!playerKits || playerKits.length === 0) {
+    return res.status(404).render("search-not-found", { username });
+  }
+
+  // 🧠 Filter out duplicates (some joins can cause repetition)
+  const uniqueKits = [];
+  const seen = new Set();
+  for (const row of playerKits) {
+    const key = row.kits.name + row.tier_code;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueKits.push(row);
+    }
   }
 
   const player = {
     username,
-    totalPoints: pkData.reduce((sum, p) => sum + p.points, 0),
-    kits: pkData.map((row) => ({
+    totalPoints: uniqueKits.reduce((sum, p) => sum + (p.points || 0), 0),
+    kits: uniqueKits.map(row => ({
       name: row.kits.name,
       tier_code: row.tier_code,
       points: row.points,
@@ -153,7 +128,10 @@ app.get("/player/:username", async (req, res) => {
   res.render("player", { player });
 });
 
-// Search
+
+// ===============================
+// 🔍 Search
+// ===============================
 app.get("/search", async (req, res) => {
   const username = req.query.username?.trim();
   if (!username) return res.redirect("/");
@@ -175,40 +153,28 @@ app.get("/search", async (req, res) => {
   }
 });
 
-// ==========================================
-// 📜 Legal Pages
-// ==========================================
-app.get("/privacy", (req, res) => {
-  res.render("privacy");
-});
-
-app.get("/terms", (req, res) => {
-  res.render("terms");
-});
-
-// Leaderboard
+// ===============================
+// 🏆 Leaderboard
+// ===============================
 app.get("/", async (req, res) => {
   const { data: pkData, error } = await supabase
     .from("player_kits")
-    .select(
-      `
+    .select(`
       player_id,
       tier_code,
       points,
       kits(name),
       players(username)
-    `
-    )
+    `)
     .order("points", { ascending: false });
 
   if (error) {
     console.error(error);
-    return res.status(500).send("Database error: " + error.message);
+    return res.send("Database error: " + error.message);
   }
 
   const leaderboard = {};
-
-  pkData.forEach((row) => {
+  pkData.forEach(row => {
     const uname = row.players.username;
     if (!leaderboard[uname]) {
       leaderboard[uname] = { username: uname, totalPoints: 0, kits: [] };
@@ -229,41 +195,15 @@ app.get("/", async (req, res) => {
   res.render("index", { players: sorted });
 });
 
-// ==========================================
-// 🧾 SERVER START + DISCORD BOT AUTOSTART
-// ==========================================
-const server = app.listen(PORT, () => {
-  console.log(`✅ Server listening on port ${PORT} (NODE_ENV=${NODE_ENV})`);
+// ===============================
+// 📜 Legal Pages
+// ===============================
+app.get("/privacy", (req, res) => res.render("privacy"));
+app.get("/terms", (req, res) => res.render("terms"));
+
+// ===============================
+// ✅ Start Server
+// ===============================
+app.listen(PORT, () => {
+  console.log(`✅ Website running on http://localhost:${PORT}`);
 });
-
-// --- Auto-start Discord bot ---
-// NOTE: On Sevalla, make sure you run only ONE replica of this app
-// if the bot should only be running once.
-const botPath = path.join(__dirname, "bot.js");
-console.log("🤖 Launching Discord bot...");
-
-const botProcess = spawn("node", [botPath], {
-  cwd: __dirname,
-  stdio: "inherit",
-  env: process.env,
-});
-
-botProcess.on("exit", (code, signal) => {
-  console.log(`⚠️ Bot process exited (${signal || code})`);
-});
-
-// --- Graceful shutdown ---
-function shutdown() {
-  console.log("\n🛑 Shutting down...");
-  server.close(() => {
-    console.log("🌐 Express server closed.");
-    if (botProcess && !botProcess.killed) {
-      botProcess.kill("SIGINT");
-      console.log("🤖 Discord bot process terminated.");
-    }
-    process.exit(0);
-  });
-}
-
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);

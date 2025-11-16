@@ -469,3 +469,17 @@ footer {
   color: #6b7280;
   margin-top: 0.5rem;
 }
+
+.kit-card {
+  background: #111218;
+  border-radius: 14px;
+  padding: 1rem;
+  text-align: center;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.kit-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(255,255,255,0.08);
+}
